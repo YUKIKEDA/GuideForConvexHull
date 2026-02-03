@@ -46,6 +46,10 @@ Andrew's Monotone Chain の核心は、凸包を**下側**と**上側**の2本�
 
 上下に分けることで、極角を使わずに「左から右」と「右から左」の2方向の走査だけで凸包が求まります。
 
+以下のアニメーションは、Andrew's Monotone Chain の動作を可視化したものです（`Chapter05/animation.py` で生成）。
+
+![Andrew's Monotone Chain アニメーション](andrew_monotone_chain.gif)
+
 ---
 
 ## 5.3 座標比較のみでソート（atan2 不要）

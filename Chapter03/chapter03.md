@@ -25,6 +25,10 @@ Gift Wrapping の考え方は非常にシンプルです。
     ・ ・ ・      次々と選んでいく
 ```
 
+以下のアニメーションは、Gift Wrapping の動作を可視化したものです（`Chapter03/animation.py` で生成）。
+
+![Gift Wrapping アニメーション](gift_wrapping.gif)
+
 ---
 
 ## 3.2 疑似コードと動作原理

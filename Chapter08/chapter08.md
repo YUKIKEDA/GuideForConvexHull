@@ -34,6 +34,10 @@ Chan's Algorithm は、次の2つのアルゴリズムを組み合わせます�
 - 各ステップで「次の凸包の頂点」を探す際、各小凸包への**接線**を求める。凸多角形への接線は**二分探索**で $O(\log m)$ で求まる。
 - パラメータ $m$ を適切に選ぶと、全体で $O(n \log h)$ になる。
 
+以下のアニメーションは、Chan's Algorithm の動作を可視化したものです（`Chapter08/animation.py` で生成）。小凸包（Graham Scan）→ Gift Wrapping で接点を選びながらマージする流れを示しています。
+
+![Chan's Algorithm アニメーション](chan_algorithm.gif)
+
 ---
 
 ## 8.3 パラメータ m の選び方
