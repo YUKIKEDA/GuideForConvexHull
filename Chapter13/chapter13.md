@@ -65,6 +65,10 @@
    - すでに両側が面で埋まっている稜線はホライゾンから除く
 ```
 
+以下のアニメーションは、3次元 Gift Wrapping の動作を可視化したものです（`Chapter13/animation.py` で生成）。稜線を1本取り出し、候補点を調べて次の面を追加する流れを示しています。
+
+![3次元 Gift Wrapping アニメーション](gift_wrapping_3d.gif)
+
 ---
 
 ## 13.3 計算量：O(nh)
@@ -84,98 +88,138 @@
 
 ### 疑似コード
 
+以下は、制御構造と代入をアルゴリズムの教科書でよく使う記法で書いた疑似コードである。代入は `←`、等号は `=`、ベクトルの減算・外積・内積はそれぞれ `−`, `×`, `·` で表す。
+
 ```
-GiftWrapping3D(P):
-    if |P| < 4:
-        return 適切に処理（0〜3点、共面など）
+SIGNED-VOLUME(a, b, c, d)
+    ab ← b − a
+    ac ← c − a
+    ad ← d − a
+    return (ab × ac) · ad
+```
 
-    // 初期面を探す：3点が同一直線上でないもの
-    (a, b, c) = 初期面を構成する3点
-    // 法線が外側を向くように (a, b, c) の順序を調整
-    faces = {(a, b, c)}
-    horizon = {(a,b), (b,c), (c,a)}  // 稜線（向き付き）
+```
+MAKE-INITIAL-FACE(P)
+    for i ← 1 to |P| − 2 do
+        for j ← i + 1 to |P| − 1 do
+            for k ← j + 1 to |P| do
+                p0 ← P[i], p1 ← P[j], p2 ← P[k]
+                if (p1 − p0) × (p2 − p0) ≠ 0 then
+                    flip ← false
+                    for each q in P, q ∉ {p0, p1, p2} do
+                        if SIGNED-VOLUME(p0, p1, p2, q) > 0 then flip ← true; break
+                    if flip then return (p0, p2, p1)   // flip normal outward
+                    else return (p0, p1, p2)
+    return NIL
+```
 
-    while horizon が空でない:
-        (a, b) = horizon から1本取り出す
-        p = None
-        for each q in P:
-            if q は a, b と重複または共線: continue
-            if すべての r in P に対して signed_volume(a, b, q, r) <= 0:
-                if p is None or tie_break(q が p より適切:
-                    p = q
-        if p is None: continue  // 退化ケース
-        faces.add((a, b, p))
-        // 新たな稜線 (b, p), (p, a) を horizon に追加
-        // (a, b) の逆向きがすでに処理済みなら horizon から削除
-        horizon を更新
+```
+FIND-NEXT-FACE(P, a, b)
+    for each p in P such that p ≠ a and p ≠ b do
+        valid ← true
+        for each q in P such that q ∉ {a, b, p} do
+            if SIGNED-VOLUME(a, b, p, q) > 0 then valid ← false; break
+        if valid then
+            // if multiple candidates, tie-break (e.g. by distance from a)
+            return p
+    return NIL
+```
 
+```
+GIFT-WRAPPING-3D(P)
+    if |P| < 4 then return NIL
+    face0 ← MAKE-INITIAL-FACE(P)
+    if face0 = NIL then return NIL
+    faces ← { face0 }
+    horizon ← ∅
+    (p0, p1, p2) ← face0
+    for e ∈ { {p0,p1}, {p1,p2}, {p2,p0} } do
+        edge_face_count[e] ← 1
+        horizon ← horizon ∪ { e }
+
+    while horizon ≠ ∅ do
+        e ← an arbitrary element of horizon
+        horizon ← horizon \ { e }
+        a, b ← the two vertices of e
+        p ← FIND-NEXT-FACE(P, a, b)
+        if p = NIL then continue
+        f ← (a, b, p)
+        faces ← faces ∪ { f }
+        for e'' ∈ { {a,b}, {b,p}, {p,a} } do
+            edge_face_count[e''] ← edge_face_count[e''] + 1
+        for e' ∈ { {a,p}, {p,b} } do   // the two edges of f other than e = {a,b}
+            if edge_face_count[e'] = 1 then horizon ← horizon ∪ { e' }
+            else horizon ← horizon \ { e' }
     return faces
 ```
 
 ### Python 実装の骨格
 
 ```python
-from collections import deque
+def signed_volume(a, b, c, d):
+    """四面体 (a,b,c,d) の符号付き体積の6倍。法線 (a,b,c) の正の側に d があると正。"""
+    ab = (b[0]-a[0], b[1]-a[1], b[2]-a[2])
+    ac = (c[0]-a[0], c[1]-a[1], c[2]-a[2])
+    ad = (d[0]-a[0], d[1]-a[1], d[2]-a[2])
+    return dot3d(cross3d(ab, ac), ad)
 
-def gift_wrapping_3d(points):
+def make_initial_face(points):
+    """同一直線上にない3点で初期面 (i, j, k) を返す。法線は外側に。"""
     n = len(points)
-    if n < 4:
-        return []  # または点数に応じた処理
-
-    pts = [tuple(p) for p in points]  # (x, y, z)
-
-    def signed_volume(a, b, c, d):
-        ab = (b[0]-a[0], b[1]-a[1], b[2]-a[2])
-        ac = (c[0]-a[0], c[1]-a[1], c[2]-a[2])
-        ad = (d[0]-a[0], d[1]-a[1], d[2]-a[2])
-        cx = ab[1]*ac[2] - ab[2]*ac[1]
-        cy = ab[2]*ac[0] - ab[0]*ac[2]
-        cz = ab[0]*ac[1] - ab[1]*ac[0]
-        return cx*ad[0] + cy*ad[1] + cz*ad[2]
-
-    # 初期面を探す
-    a, b, c = None, None, None
     for i in range(n):
         for j in range(i+1, n):
             for k in range(j+1, n):
-                if signed_volume(pts[i], pts[j], pts[k], pts[(k+1) % n if k+1 < n else 0]) != 0:
-                    a, b, c = pts[i], pts[j], pts[k]
-                    break
-            if a is not None: break
-        if a is not None: break
+                a, b, c = points[i], points[j], points[k]
+                if cross_norm_sq(a, b, c) < eps: continue  # 共線
+                # 他全点が負の側になるよう法線を向ける（必要なら (i,k,j) を返す）
+                ...
+    return None
 
-    if a is None:
-        return []  # 全点が共面
+def find_next_face(points, ai, bi):
+    """稜線 (points[ai], points[bi]) に対する次の面の第3頂点のインデックス。"""
+    a, b = points[ai], points[bi]
+    for p_idx in range(len(points)):
+        if p_idx in (ai, bi): continue
+        p = points[p_idx]
+        # すべての q（q ≠ a, b, p）について signed_volume(a, b, p, q) ≤ 0 か確認
+        if all(signed_volume(a, b, p, points[q_idx]) <= 0
+               for q_idx in range(len(points)) if q_idx not in (ai, bi, p_idx)):
+            # 複数候補なら tie-break（距離など）で1つに
+            return p_idx
+    return None
 
-    # 法線が外側を向くようにする（1点を反対側に）
-    for i in range(n):
-        if pts[i] not in (a, b, c) and signed_volume(a, b, c, pts[i]) > 0:
-            b, c = c, b
-            break
-
-    faces = set()
-    faces.add((a, b, c))
-    horizon = deque([(a, b), (b, c), (c, a)])
+def gift_wrapping_3d(points):
+    if len(points) < 4: return []
+    face0 = make_initial_face(points)
+    if face0 is None: return []
+    faces = [face0]
+    edge_face_count = {}  # 稜線 frozenset({i,j}) → 属する面の数
+    i0, j0, k0 = face0
+    for e in [frozenset({i0,j0}), frozenset({j0,k0}), frozenset({k0,i0})]:
+        edge_face_count[e] = 1
+    horizon = set(edge_face_count.keys())
 
     while horizon:
-        a, b = horizon.popleft()
-        best = None
-        for q in pts:
-            if q in (a, b): continue
-            vol = signed_volume(a, b, q, pts[0] if pts[0] not in (a,b,q) else pts[1])
-            if vol > 0: continue
-            ok = all(signed_volume(a, b, q, r) <= 0 for r in pts if r not in (a, b, q))
-            if ok and (best is None or signed_volume(a, b, best, q) < 0):
-                best = q
-        if best is None: continue
-        p = best
-        faces.add((a, b, p))
-        if (b, p) not in [(f[0],f[1]) for f in faces] + [(f[1],f[2]) for f in faces] + [(f[2],f[0]) for f in faces]:
-            horizon.append((b, p))
-        if (p, a) not in ...:
-            horizon.append((p, a))
-
-    return list(faces)
+        e = next(iter(horizon))
+        ai, bi = tuple(e)
+        p_idx = find_next_face(points, ai, bi)
+        if p_idx is None:
+            horizon.discard(e)
+            continue
+        new_face = (ai, bi, p_idx)
+        faces.append(new_face)
+        # 新面の3辺を edge_face_count に反映
+        for (a, b, c) in [new_face]:
+            for e2 in [frozenset({a,b}), frozenset({b,c}), frozenset({c,a})]:
+                edge_face_count[e2] = edge_face_count.get(e2, 0) + 1
+        horizon.discard(e)  # 稜線 e は2面に属するので horizon から除く
+        # 新面の残り2辺 (ai,p_idx), (p_idx,bi): 1面のみなら horizon に追加、2面なら除く
+        for e2 in [frozenset({ai, p_idx}), frozenset({p_idx, bi})]:
+            if edge_face_count[e2] == 1:
+                horizon.add(e2)
+            else:
+                horizon.discard(e2)
+    return faces
 ```
 
 > 注：上記は概念を示すための骨格です。稜線の重複管理、退化ケース、法線の一貫性などは、実装時にきちんと詰める必要があります。実用には、第15章の Half-edge や DCEL を用いた実装が扱いやすいです。
